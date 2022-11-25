@@ -79,14 +79,14 @@ func checkBscUrl(ctx context.Context, url string, errorUrls []string) {
 	if err != nil {
 		errorUrls = append(errorUrls, url)
 	}
-	height := block.NumberU64()
+	height := block.Number()
 	if orgHeight, ok := heightMap[url]; ok {
-		if height == orgHeight {
+		if height.Uint64() == orgHeight {
 			errorUrls = append(errorUrls, url)
 			return
 		}
 	}
-	heightMap[url] = height
+	heightMap[url] = height.Uint64()
 
 	// test call contract
 	ci, err := util.NewRootchain(common.HexToAddress(conf.GetConfig().RootChainContract), bscChainClient)
