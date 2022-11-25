@@ -55,7 +55,7 @@ func BscMonitor() {
 				isFirstTick = false
 				ticker.Reset(checkInterval)
 			}
-			go checkBscUrl(ctx)
+			go checkBscUrls(ctx)
 
 		case <-quit:
 			fmt.Println("quit")
