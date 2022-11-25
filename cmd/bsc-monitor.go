@@ -37,6 +37,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	heightMap = make(map[string]uint64)
 }
 
 func BscMonitor() {
