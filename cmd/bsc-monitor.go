@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"sync"
@@ -66,37 +67,40 @@ func BscMonitor() {
 	}
 }
 
-func checkBscUrl(ctx context.Context, url string, errorUrls []string) {
+func checkBscUrl(ctx context.Context, targetUrl string, errorUrls *[]string) {
+	u, _ := url.Parse(targetUrl)
 	// test height growth
-	bscRPCClient, err := rpc.Dial(url)
+	bscRPCClient, err := rpc.Dial(u.String())
 	if err != nil {
-		errorUrls = append(errorUrls, url)
+		*errorUrls = append(*errorUrls, u.Host+"#rpc")
 		return
 	}
 
 	bscChainClient := ethclient.NewClient(bscRPCClient)
 	block, err := bscChainClient.BlockByNumber(ctx, nil)
 	if err != nil {
-		errorUrls = append(errorUrls, url)
+		*errorUrls = append(*errorUrls, u.Host+"#block")
+		return
 	}
+
 	height := block.Number()
-	if orgHeight, ok := heightMap[url]; ok {
+	if orgHeight, ok := heightMap[u.String()]; ok {
 		if height.Uint64() == orgHeight {
-			errorUrls = append(errorUrls, url)
+			*errorUrls = append(*errorUrls, u.Host+"#height")
 			return
 		}
 	}
-	heightMap[url] = height.Uint64()
+	heightMap[u.String()] = height.Uint64()
 
 	// test call contract
 	ci, err := util.NewRootchain(common.HexToAddress(conf.GetConfig().RootChainContract), bscChainClient)
 	if err != nil {
-		errorUrls = append(errorUrls, url)
+		*errorUrls = append(*errorUrls, u.Host+"#roochain")
 		return
 	}
 	_, err = ci.GetLastChildBlock(nil)
 	if err != nil {
-		errorUrls = append(errorUrls, url)
+		*errorUrls = append(*errorUrls, u.Host+"#contract")
 		return
 	}
 }
@@ -110,9 +114,9 @@ func checkBscUrls(ctx context.Context) {
 	for _, url := range config.BscUrls {
 		go func(url string) {
 			defer wg.Done()
-			checkBscUrl(ctx, url, errorUrls)
+			checkBscUrl(ctx, url, &errorUrls)
 		}(url)
 	}
 	wg.Wait()
-	fmt.Println("error urls:", errorUrls)
+	fmt.Printf("%v error urls:%v\n", time.Now().Format("2006-01-02 15:04:05"), errorUrls)
 }
