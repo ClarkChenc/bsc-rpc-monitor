@@ -85,26 +85,32 @@ func BscMonitor() {
 	}
 }
 
-func checkBscUrl(ctx context.Context, targetUrl string, errorUrls *[]string) {
+func checkBscUrl(ctx context.Context, targetUrl string, errorUrls *ErrorUrls) {
 	u, _ := url.Parse(targetUrl)
 	// test height growth
 	bscRPCClient, err := rpc.Dial(u.String())
 	if err != nil {
-		*errorUrls = append(*errorUrls, u.Host+"#rpc")
+		errorUrls.lock.Lock()
+		defer errorUrls.lock.Unlock()
+		errorUrls.errorUrls = append(errorUrls.errorUrls, u.Host+"#rpc")
 		return
 	}
 
 	bscChainClient := ethclient.NewClient(bscRPCClient)
 	block, err := bscChainClient.BlockByNumber(ctx, nil)
 	if err != nil {
-		*errorUrls = append(*errorUrls, u.Host+"#block")
+		errorUrls.lock.Lock()
+		defer errorUrls.lock.Unlock()
+		errorUrls.errorUrls = append(errorUrls.errorUrls, u.Host+"#block")
 		return
 	}
 
 	height := block.Number()
 	if orgHeight, ok := getHeight(u.String()); ok {
 		if height.Uint64() == orgHeight {
-			*errorUrls = append(*errorUrls, u.Host+"#height")
+			errorUrls.lock.Lock()
+			defer errorUrls.lock.Unlock()
+			errorUrls.errorUrls = append(errorUrls.errorUrls, u.Host+"#height")
 			return
 		}
 	}
@@ -113,18 +119,27 @@ func checkBscUrl(ctx context.Context, targetUrl string, errorUrls *[]string) {
 	// test call contract
 	ci, err := util.NewRootchain(common.HexToAddress(conf.GetConfig().RootChainContract), bscChainClient)
 	if err != nil {
-		*errorUrls = append(*errorUrls, u.Host+"#roochain")
+		errorUrls.lock.Lock()
+		defer errorUrls.lock.Unlock()
+		errorUrls.errorUrls = append(errorUrls.errorUrls, u.Host+"#roochain")
 		return
 	}
 	_, err = ci.GetLastChildBlock(nil)
 	if err != nil {
-		*errorUrls = append(*errorUrls, u.Host+"#contract")
+		errorUrls.lock.Lock()
+		defer errorUrls.lock.Unlock()
+		errorUrls.errorUrls = append(errorUrls.errorUrls, u.Host+"#contract")
 		return
 	}
 }
 
+type ErrorUrls struct {
+	errorUrls []string
+	lock      sync.RWMutex
+}
+
 func checkBscUrls(ctx context.Context) {
-	errorUrls := make([]string, 0)
+	errorUrls := ErrorUrls{}
 
 	config := conf.GetConfig()
 	wg := sync.WaitGroup{}
@@ -136,5 +151,5 @@ func checkBscUrls(ctx context.Context) {
 		}(url)
 	}
 	wg.Wait()
-	fmt.Printf("%v error urls:%v\n", time.Now().Format("2006-01-02 15:04:05"), errorUrls)
+	fmt.Printf("%v error urls:%v\n", time.Now().Format("2006-01-02 15:04:05"), errorUrls.errorUrls)
 }
