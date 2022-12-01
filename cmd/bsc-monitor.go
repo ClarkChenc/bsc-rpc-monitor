@@ -29,7 +29,8 @@ var (
 		},
 	}
 
-	heightMap map[string]uint64
+	heightMap     map[string]uint64
+	heightMapLock sync.RWMutex
 )
 
 func init() {
@@ -39,6 +40,23 @@ func init() {
 		panic(err)
 	}
 	heightMap = make(map[string]uint64)
+}
+
+func getHeight(url string) (uint64, bool) {
+	heightMapLock.RLock()
+	defer heightMapLock.RUnlock()
+
+	if height, ok := heightMap[url]; ok {
+		return height, true
+	}
+	return 0, false
+}
+
+func setHeight(url string, height uint64) {
+	heightMapLock.Lock()
+	defer heightMapLock.Unlock()
+
+	heightMap[url] = height
 }
 
 func BscMonitor() {
@@ -84,13 +102,13 @@ func checkBscUrl(ctx context.Context, targetUrl string, errorUrls *[]string) {
 	}
 
 	height := block.Number()
-	if orgHeight, ok := heightMap[u.String()]; ok {
+	if orgHeight, ok := getHeight(u.String()); ok {
 		if height.Uint64() == orgHeight {
 			*errorUrls = append(*errorUrls, u.Host+"#height")
 			return
 		}
 	}
-	heightMap[u.String()] = height.Uint64()
+	setHeight(u.String(), height.Uint64())
 
 	// test call contract
 	ci, err := util.NewRootchain(common.HexToAddress(conf.GetConfig().RootChainContract), bscChainClient)
