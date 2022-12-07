@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -139,6 +140,14 @@ type ErrorUrls struct {
 	lock      sync.RWMutex
 }
 
+func TrimRright(str string, c string) string {
+	lastIndex := strings.LastIndex(str, "#")
+	if lastIndex == -1 {
+		return str
+	}
+	return str[:lastIndex]
+}
+
 func checkBscUrls(ctx context.Context) {
 	errorUrls := ErrorUrls{}
 
@@ -152,7 +161,20 @@ func checkBscUrls(ctx context.Context) {
 		}(url)
 	}
 	wg.Wait()
+	errorMap := make(map[string]string)
+	for _, url := range errorUrls.errorUrls {
+		host := TrimRright(url, "#")
+		errorMap[host] = url
+	}
+
+	reportErrorUrl := []string{}
+	for _, u := range conf.GetConfig().BscUrls {
+		URL, _ := url.Parse(u)
+		if _, ok := errorMap[URL.Host]; ok {
+			reportErrorUrl = append(reportErrorUrl, errorMap[URL.Host])
+		}
+	}
 
 	sort.Strings(errorUrls.errorUrls)
-	fmt.Printf("%v error urls:%v\n", time.Now().Format("2006-01-02 15:04:05"), errorUrls.errorUrls)
+	fmt.Printf("%v error urls:%v\n", time.Now().Format("2006-01-02 15:04:05"), reportErrorUrl)
 }
