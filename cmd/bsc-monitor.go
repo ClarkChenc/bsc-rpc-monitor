@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -151,5 +152,7 @@ func checkBscUrls(ctx context.Context) {
 		}(url)
 	}
 	wg.Wait()
+
+	sort.Strings(errorUrls.errorUrls)
 	fmt.Printf("%v error urls:%v\n", time.Now().Format("2006-01-02 15:04:05"), errorUrls.errorUrls)
 }
